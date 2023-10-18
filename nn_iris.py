@@ -99,9 +99,6 @@ class Model:
     def print_results(self, precision, recall, f1, accuracy):
         print(f'Train Results')
         print(f'---------------------')
-        print(f'Precision = {precision}')
-        print(f'Recall    = {recall}')
-        print(f'F-1 Score = {f1}')
         print(f'Accuracy  = {accuracy}')
         print(f'---------------------')
 
