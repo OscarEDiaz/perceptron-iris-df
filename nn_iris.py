@@ -17,9 +17,7 @@ class Model:
     def define_training_test(self):
         # Separate by classes
         class_column = self.dataset.columns[-1]
-        classes = self.dataset[self.database.columns[-1]].drop_duplicates()
-
-        print('Lenght of classes', len(classes))
+        classes = self.dataset[self.dataset.columns[-1]].drop_duplicates()
 
         training_set = pd.DataFrame()
         test_set = pd.DataFrame()
@@ -46,62 +44,79 @@ class Model:
         return training_set, test_set
 
 
-    def train(self, training_set, test_set, epochs, n_layers, n_neurons, l_rate, m):
-        nn_arquitecture = [n_neurons] * n_layers
+    def train(self, training_set, test_set, epochs, topology, learning_rate, momemtum):
+        # Training set attributes definition
+        train_attributes = training_set.columns[:-1]
+        train_class_attribute = training_set.columns[-1]
+
+        # print(f'TR_AT: {train_attributes} - TR_CAT: {train_class_attribute}')
+
+        # Test set attributes definition
+        test_attributes = test_set.columns[:-1]
+        test_class_attribute = test_set.columns[-1]
+
+
+        # print(f'T_AT: {test_attributes} - T_CAT: {test_class_attribute}')
+
+        # print(training_set[train_class_attribute])
+
 
         clf = MLPClassifier(max_iter = epochs, 
-                            hidden_layer_sizes = (nn_arquitecture),
-                            learning_rate = l_rate, 
-                            momentum = m)
+                            hidden_layer_sizes = topology,
+                            learning_rate_init = learning_rate, 
+                            momentum = momemtum)
 
         # Train the model
-        clf.fit(training_set[:-1], training_set[-1])
+        clf.fit(training_set[train_attributes], training_set[train_class_attribute])
 
-        accuracy = clf.score(test_set[:-1], test_set[-1])
+        accuracy = clf.score(test_set[test_attributes], test_set[test_class_attribute])
 
         return accuracy
-
 
 
     def cross_validate(self, training_set, n_folds, hyperparameters):
         # Hyperparameters
         epochs        = hyperparameters[0]
-        hidden_layers = hyperparameters[1]
-        neurons       = hyperparameters[2]
-        learning_rate = hyperparameters[3]
-        momemtum      = hyperparameters[4]
+        topology      = hyperparameters[1]
+        learning_rate = hyperparameters[2]
+        momemtum      = hyperparameters[3]
 
-        range = 1/n_folds
+        percentage = 1/n_folds
 
-        for n in n_folds:
+        TOP = 0
+        BOTTOM = 0
+
+        for n in range(0, n_folds):
+            window = math.floor(len(training_set) * percentage)
+
             # Sliding window
-            TOP += range
-            BOTTOM = TOP - range
+            TOP += window
+            BOTTOM = TOP - window
 
             # Create test fold
             test_fold = training_set.iloc[BOTTOM:TOP]
             training_fold = pd.DataFrame()
 
             # Create training fold
-            if n != 0 and n < len(n_folds) - 1:
+            if n != 0 and n < n_folds:
                 training_fold_complement_0 = training_set.iloc[0:BOTTOM]
                 training_fold_complement_1 = training_set.iloc[TOP:len(training_set)]
                 training_fold = pd.concat([training_fold_complement_0, training_fold_complement_1])
             elif n == 0:
                 training_fold = training_set.iloc[TOP:len(training_set)]
-            elif n == len(n_folds) - 1:
+            elif n == n_folds:
                 training_fold = training_set.iloc[0:BOTTOM]
 
-            # Train the model
-            self.train(training_fold, test_fold, epochs, hidden_layers, neurons, learning_rate, momemtum)
+            # Train the model and retrieve its accuracy
+            accuracy = self.train(training_fold, test_fold, epochs, topology, learning_rate, momemtum)
+
+            # Print the accuracy
+            self.print_results(accuracy=accuracy)
 
 
-    def print_results(self, precision, recall, f1, accuracy):
+    def print_results(self, accuracy):
         print(f'Train Results')
         print(f'---------------------')
-        print(f'Precision = {precision}')
-        print(f'Recall    = {recall}')
-        print(f'F-1 Score = {f1}')
         print(f'Accuracy  = {accuracy}')
         print(f'---------------------')
 
@@ -116,4 +131,13 @@ df['target'] = iris.target
 
 # Create the model
 model = Model(df, 0.7)
+
+# Create training and test sets
 training_set, test_set = model.define_training_test()
+
+# Define the hyperparameters
+# EPOCHS / HIDDEN LAYERS / NEURONS / LEARNING RATE / MOMEMTUM
+hpms = [200, (3, 3, 3), 0.3, 0.2]
+
+# Cross validate the model
+model.cross_validate(training_set=training_set, n_folds=3, hyperparameters=hpms)
