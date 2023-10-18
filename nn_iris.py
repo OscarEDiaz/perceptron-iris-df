@@ -96,7 +96,7 @@ class Model:
             self.train(training_fold, test_fold, epochs, hidden_layers, neurons, learning_rate, momemtum)
 
 
-    def print_results(self, precision, recall, f1, accuracy):
+    def print_results(self, accuracy):
         print(f'Train Results')
         print(f'---------------------')
         print(f'Accuracy  = {accuracy}')
