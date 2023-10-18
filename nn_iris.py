@@ -92,8 +92,11 @@ class Model:
             elif n == len(n_folds) - 1:
                 training_fold = training_set.iloc[0:BOTTOM]
 
-            # Train the model
-            self.train(training_fold, test_fold, epochs, hidden_layers, neurons, learning_rate, momemtum)
+            # Train the model and retrieve its accuracy
+            accuracy = self.train(training_fold, test_fold, epochs, hidden_layers, neurons, learning_rate, momemtum)
+
+            # Print the accuracy
+            self.print_results(accuracy=accuracy)
 
 
     def print_results(self, accuracy):
@@ -113,4 +116,13 @@ df['target'] = iris.target
 
 # Create the model
 model = Model(df, 0.7)
+
+# Create training and test sets
 training_set, test_set = model.define_training_test()
+
+# Define the hyperparameters
+# EPOCHS / HIDDEN LAYERS / NEURONS / LEARNING RATE / MOMEMTUM
+hpms = [5, 3, 4, 0.3, 0.2]
+
+# Cross validate the model
+model.cross_validate(3, hpms)
