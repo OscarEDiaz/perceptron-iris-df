@@ -19,8 +19,6 @@ class Model:
         class_column = self.dataset.columns[-1]
         classes = self.dataset[self.dataset.columns[-1]].drop_duplicates()
 
-        print('Lenght of classes', len(classes))
-
         training_set = pd.DataFrame()
         test_set = pd.DataFrame()
 
@@ -51,9 +49,17 @@ class Model:
         train_attributes = training_set.columns[:-1]
         train_class_attribute = training_set.columns[-1]
 
+        # print(f'TR_AT: {train_attributes} - TR_CAT: {train_class_attribute}')
+
         # Test set attributes definition
         test_attributes = test_set.columns[:-1]
         test_class_attribute = test_set.columns[-1]
+
+
+        # print(f'T_AT: {test_attributes} - T_CAT: {test_class_attribute}')
+
+        # print(training_set[train_class_attribute])
+
 
         clf = MLPClassifier(max_iter = epochs, 
                             hidden_layer_sizes = topology,
@@ -131,7 +137,7 @@ training_set, test_set = model.define_training_test()
 
 # Define the hyperparameters
 # EPOCHS / HIDDEN LAYERS / NEURONS / LEARNING RATE / MOMEMTUM
-hpms = [100, [3, 3, 3], 0.3, 0.2]
+hpms = [200, (3, 3, 3), 0.3, 0.2]
 
 # Cross validate the model
 model.cross_validate(training_set=training_set, n_folds=3, hyperparameters=hpms)
