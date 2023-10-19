@@ -27,7 +27,7 @@ class Model:
             set = self.dataset[mask]
             
             # Randomize each set
-            shuffled_set = set.sample(frac = 1)
+            shuffled_set = set.sample(frac = 1).reset_index(drop=True)
 
             # Set tresholds
             BOTTOM = 0
@@ -41,6 +41,8 @@ class Model:
             training_set = pd.concat([training_set, training_part])
             test_set = pd.concat([test_set, test_part])
 
+        training_set = training_set.sample(frac = 1)
+        test_set = test_set.sample(frac = 1)
         return training_set, test_set
 
 
