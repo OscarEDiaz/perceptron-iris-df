@@ -1,5 +1,6 @@
 from sklearn import datasets
 from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -44,10 +45,11 @@ class Model:
 
         training_set = training_set.sample(frac = 1)
         test_set = test_set.sample(frac = 1)
+
         return training_set, test_set
 
 
-    def train(self, training_set, test_set, epochs, topology, learning_rate, momemtum):
+    def train(self, training_set, test_set, hyperparameters):
         # Training set attributes definition
         train_attributes = training_set.columns[:-1]
         train_class_attribute = training_set.columns[-1]
@@ -56,6 +58,11 @@ class Model:
         test_attributes = test_set.columns[:-1]
         test_class_attribute = test_set.columns[-1]
 
+        # Define the hyperparameters
+        epochs        = hyperparameters[0]
+        topology      = hyperparameters[1]
+        momemtum      = hyperparameters[2]
+        learning_rate = hyperparameters[3]
 
         clf = MLPClassifier(max_iter = epochs, 
                             hidden_layer_sizes = topology,
@@ -69,20 +76,52 @@ class Model:
 
         return accuracy
 
+    def train_cross_validation(self, training_set, test_set, hyperparameters, epoch):
+        # Training set attributes definition
+        train_attributes = training_set.columns[:-1]
+        train_class_attribute = training_set.columns[-1]
 
-    def cross_validate(self, training_set, n_folds, hyperparameters):
-        # Hyperparameters
-        epochs        = hyperparameters[0]
+        # Test set attributes definition
+        test_attributes = test_set.columns[:-1]
+        test_class_attribute = test_set.columns[-1]
+
+        # Define the hyperparameters
         topology      = hyperparameters[1]
-        learning_rate = hyperparameters[2]
-        momemtum      = hyperparameters[3]
+        momemtum      = hyperparameters[2]
+        learning_rate = hyperparameters[3]
 
-        percentage = 1/n_folds
+        print({'topology': topology, 'momemtum': momemtum, 'learning rate': learning_rate, 'epoch': epoch})
+
+        clf = MLPClassifier(max_iter = epoch, 
+                            hidden_layer_sizes = topology,
+                            learning_rate_init = learning_rate, 
+                            activation="logistic",
+                            momentum = momemtum,
+                            solver='lbfgs',
+                            random_state=42)
+
+        # Train the model
+        x_train = training_set[train_attributes]
+        y_train = training_set[train_class_attribute]
+
+        x_test = test_set[test_attributes]
+        y_test = test_set[test_class_attribute]
+
+        clf.fit(x_train, y_train)
+
+        accuracy_train = 1 - clf.score(x_train, y_train) 
+        accuracy_test = 1 - clf.score(x_test, y_test) 
+
+        return [accuracy_train, accuracy_test]
+
+
+    def cross_validate(self, training_set, k, hyperparameters):
+        percentage = 1/k
 
         TOP = 0
         BOTTOM = 0
 
-        for n in range(0, n_folds):
+        for n in range(0, k):
             window = math.floor(len(training_set) * percentage)
 
             # Sliding window
@@ -94,26 +133,47 @@ class Model:
             training_fold = pd.DataFrame()
 
             # Create training fold
-            if n != 0 and n < n_folds:
+            if n != 0 and n < k:
                 training_fold_complement_0 = training_set.iloc[0:BOTTOM]
                 training_fold_complement_1 = training_set.iloc[TOP:len(training_set)]
                 training_fold = pd.concat([training_fold_complement_0, training_fold_complement_1])
             elif n == 0:
                 training_fold = training_set.iloc[TOP:len(training_set)]
-            elif n == n_folds:
+            elif n == k:
                 training_fold = training_set.iloc[0:BOTTOM]
 
-            # Train the model and retrieve its accuracy
-            accuracy = self.train(training_fold, test_fold, epochs, topology, learning_rate, momemtum)
+            # print(f'--------------FOLD: {n}-----------------')
+            # print('Training fold: ')
+            # print(training_fold)
+            # print('Testing fold: ')
+            # print(test_fold)
+            # print('-----------------------------------------')
 
-            # Print the accuracy
-            self.print_results(accuracy=accuracy)
+            # For each experiment in the grid, retrieve the best model
+            for exp in hyperparameters:
+                train_errors, test_errors = [], []
+                n_epochs = exp[0]
 
+                for e in range(1, n_epochs+1):
+                    errors = self.train_cross_validation(training_fold, test_fold, exp, e)
+
+                    train_errors.append(errors[0])
+                    test_errors.append(errors[1])
+
+                print(len(train_errors))
+                print(len(test_errors))
+
+                plt.plot(range(1, exp[0] + 1), train_errors, label='Train Error')
+                plt.plot(range(1, exp[0] + 1), test_errors, label='Test Error')
+                plt.xlabel('Número de Épocas')
+                plt.ylabel('Error')
+                plt.legend()
+                plt.show()
 
     def read_csv(self, filename):
         def list_to_int(x):
             if type(x) is list:
-                return [float(n) for n in x]
+                return [int(n) for n in x]
             else:
                 return float(x)
 
@@ -121,18 +181,24 @@ class Model:
             with open(filename, newline='') as csvfile:
                 reader = list(csv.reader(csvfile, delimiter=','))
                 
-                # Remove the first row
+                # Remove the first row (column headers)
                 reader = reader[1:]
 
-                # Process the number of neurons for each epoch
-                for row in reader:
-                    str = row[3]
+                # CSV preprocessing
+                for i, row in enumerate(reader):
+                    # Retrieve the neurons array for each epoch
+                    str = row[1]
                     neurons_array = str.split(';')
 
-                    row[3] = neurons_array
+                    row[1] = neurons_array
 
                     row = list(map(list_to_int, row))
-            
+
+                    # Cast to int the number of epochs
+                    row[0] = int(row[0])
+
+                    reader[i] = row
+
             return reader
         except EnvironmentError:
             raise
@@ -156,17 +222,18 @@ def main_pipeline():
     df['target'] = iris.target
 
     # Create the model
-    model = Model(df, 0.7)
+    model = Model(df, 0.8)
 
     # Create training and test sets
     training_set, test_set = model.define_training_test()
 
-    # Define the hyperparameters
-    # EPOCHS / HIDDEN LAYERS / NEURONS / LEARNING RATE / MOMEMTUM
-    hyperparameters = model.read_csv('tet.csv')
+    # Retrieve the hyperparameters grid from a csv file
+    hyperparameters = model.read_csv('test.csv')
+
+    print(hyperparameters)
 
     # Cross validate the model
-    # model.cross_validate(training_set=training_set, n_folds=3, hyperparameters=hpms)
+    model.cross_validate(training_set, 2, hyperparameters)
 
 
 main_pipeline()
