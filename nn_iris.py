@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import math
+import csv
 
 class Model:
     def __init__(self, dataset, training_percentage):
@@ -51,16 +52,9 @@ class Model:
         train_attributes = training_set.columns[:-1]
         train_class_attribute = training_set.columns[-1]
 
-        # print(f'TR_AT: {train_attributes} - TR_CAT: {train_class_attribute}')
-
         # Test set attributes definition
         test_attributes = test_set.columns[:-1]
         test_class_attribute = test_set.columns[-1]
-
-
-        # print(f'T_AT: {test_attributes} - T_CAT: {test_class_attribute}')
-
-        # print(training_set[train_class_attribute])
 
 
         clf = MLPClassifier(max_iter = epochs, 
@@ -116,30 +110,63 @@ class Model:
             self.print_results(accuracy=accuracy)
 
 
+    def read_csv(self, filename):
+        def list_to_int(x):
+            if type(x) is list:
+                return [float(n) for n in x]
+            else:
+                return float(x)
+
+        try:
+            with open(filename, newline='') as csvfile:
+                reader = list(csv.reader(csvfile, delimiter=','))
+                
+                # Remove the first row
+                reader = reader[1:]
+
+                # Process the number of neurons for each epoch
+                for row in reader:
+                    str = row[3]
+                    neurons_array = str.split(';')
+
+                    row[3] = neurons_array
+
+                    row = list(map(list_to_int, row))
+            
+            return reader
+        except EnvironmentError:
+            raise
+
+
     def print_results(self, accuracy):
         print(f'Train Results')
         print(f'---------------------')
         print(f'Accuracy  = {accuracy}')
         print(f'---------------------')
 
-# Load iris database
-iris = datasets.load_iris()
 
-# Convert the iris dataset to a pandas dataframe
-df = pd.DataFrame(iris.data, columns=iris.feature_names)
+def main_pipeline():
+    # Load iris database
+    iris = datasets.load_iris()
 
-# Add the target variable to the dataframe
-df['target'] = iris.target
+    # Convert the iris dataset to a pandas dataframe
+    df = pd.DataFrame(iris.data, columns=iris.feature_names)
 
-# Create the model
-model = Model(df, 0.7)
+    # Add the target variable to the dataframe
+    df['target'] = iris.target
 
-# Create training and test sets
-training_set, test_set = model.define_training_test()
+    # Create the model
+    model = Model(df, 0.7)
 
-# Define the hyperparameters
-# EPOCHS / HIDDEN LAYERS / NEURONS / LEARNING RATE / MOMEMTUM
-hpms = [200, (3, 3, 3), 0.3, 0.2]
+    # Create training and test sets
+    training_set, test_set = model.define_training_test()
 
-# Cross validate the model
-model.cross_validate(training_set=training_set, n_folds=3, hyperparameters=hpms)
+    # Define the hyperparameters
+    # EPOCHS / HIDDEN LAYERS / NEURONS / LEARNING RATE / MOMEMTUM
+    hyperparameters = model.read_csv('tet.csv')
+
+    # Cross validate the model
+    # model.cross_validate(training_set=training_set, n_folds=3, hyperparameters=hpms)
+
+
+main_pipeline()
