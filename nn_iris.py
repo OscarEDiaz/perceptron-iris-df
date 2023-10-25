@@ -1,6 +1,7 @@
 from sklearn import datasets
 from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import mean_squared_error
+from scipy.io.arff import loadarff
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -173,6 +174,7 @@ class Model:
     def read_csv(self, filename):
         def list_to_int(x):
             if type(x) is list:
+
                 return [int(n) for n in x]
             else:
                 return float(x)
@@ -212,23 +214,22 @@ class Model:
 
 
 def main_pipeline():
-    # Load iris database
-    iris = datasets.load_iris()
+    # Load iris augmented database
+    raw_data = loadarff('perceptron-iris-df-grid/irisAumentedData.arff')
+    df_data = pd.DataFrame(raw_data[0])
 
-    # Convert the iris dataset to a pandas dataframe
-    df = pd.DataFrame(iris.data, columns=iris.feature_names)
+    #Change the nominal values of variety to numeric
+    df_data['variety'] = pd.factorize(df_data['variety'])[0]
 
-    # Add the target variable to the dataframe
-    df['target'] = iris.target
 
     # Create the model
-    model = Model(df, 0.8)
+    model = Model(df_data, 0.8)
 
     # Create training and test sets
     training_set, test_set = model.define_training_test()
 
     # Retrieve the hyperparameters grid from a csv file
-    hyperparameters = model.read_csv('test.csv')
+    hyperparameters = model.read_csv('perceptron-iris-df-grid/test.csv')
 
     print(hyperparameters)
 
