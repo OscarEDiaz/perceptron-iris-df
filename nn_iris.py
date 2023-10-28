@@ -50,34 +50,7 @@ class Model:
         return training_set, test_set
 
 
-    def train(self, training_set, test_set, hyperparameters):
-        # Training set attributes definition
-        train_attributes = training_set.columns[:-1]
-        train_class_attribute = training_set.columns[-1]
-
-        # Test set attributes definition
-        test_attributes = test_set.columns[:-1]
-        test_class_attribute = test_set.columns[-1]
-
-        # Define the hyperparameters
-        epochs        = hyperparameters[0]
-        topology      = hyperparameters[1]
-        momemtum      = hyperparameters[2]
-        learning_rate = hyperparameters[3]
-
-        clf = MLPClassifier(max_iter = epochs, 
-                            hidden_layer_sizes = topology,
-                            learning_rate_init = learning_rate, 
-                            momentum = momemtum)
-
-        # Train the model
-        clf.fit(training_set[train_attributes], training_set[train_class_attribute])
-
-        accuracy = clf.score(test_set[test_attributes], test_set[test_class_attribute])
-
-        return accuracy
-
-    def train_cross_validation(self, training_set, test_set, hyperparameters, epoch):
+    def train_model(self, training_set, test_set, hyperparameters, epoch):
         # Training set attributes definition
         train_attributes = training_set.columns[:-1]
         train_class_attribute = training_set.columns[-1]
@@ -91,7 +64,7 @@ class Model:
         momemtum      = hyperparameters[2]
         learning_rate = hyperparameters[3]
 
-        print({'topology': topology, 'momemtum': momemtum, 'learning rate': learning_rate, 'epoch': epoch})
+        # print({'topology': topology, 'momemtum': momemtum, 'learning rate': learning_rate, 'epoch': epoch})
 
         clf = MLPClassifier(max_iter = epoch, 
                             hidden_layer_sizes = topology,
@@ -110,8 +83,8 @@ class Model:
 
         clf.fit(x_train, y_train)
 
-        accuracy_train = 1 - clf.score(x_train, y_train) 
-        accuracy_test = 1 - clf.score(x_test, y_test) 
+        accuracy_train = clf.score(x_train, y_train) 
+        accuracy_test = clf.score(x_test, y_test) 
 
         return [accuracy_train, accuracy_test]
 
@@ -143,12 +116,12 @@ class Model:
             elif n == k:
                 training_fold = training_set.iloc[0:BOTTOM]
 
-            # print(f'--------------FOLD: {n}-----------------')
-            # print('Training fold: ')
-            # print(training_fold)
-            # print('Testing fold: ')
-            # print(test_fold)
-            # print('-----------------------------------------')
+            print(f'--------------FOLD: {n}-----------------')
+            print('Training fold: ')
+            print(training_fold)
+            print('Testing fold: ')
+            print(test_fold)
+            print('-----------------------------------------')
 
             # For each experiment in the grid, retrieve the best model
             for exp in hyperparameters:
@@ -161,11 +134,11 @@ class Model:
                     train_errors.append(errors[0])
                     test_errors.append(errors[1])
 
-                print(len(train_errors))
-                print(len(test_errors))
+                # print(len(train_errors))
+                # print(len(test_errors))
 
-                plt.plot(range(1, exp[0] + 1), train_errors, label='Train Error')
-                plt.plot(range(1, exp[0] + 1), test_errors, label='Test Error')
+                plt.plot(range(1, len(train_errors) + 1), train_errors, label='Train Error')
+                plt.plot(range(1, len(test_errors) + 1), test_errors, label='Test Error')
                 plt.xlabel('Número de Épocas')
                 plt.ylabel('Error')
                 plt.legend()
@@ -174,7 +147,6 @@ class Model:
     def read_csv(self, filename):
         def list_to_int(x):
             if type(x) is list:
-
                 return [int(n) for n in x]
             else:
                 return float(x)
@@ -215,26 +187,26 @@ class Model:
 
 def main_pipeline():
     # Load iris augmented database
-    raw_data = loadarff('perceptron-iris-df-grid/irisAumentedData.arff')
+    raw_data = loadarff('irisAumentedData.arff')
     df_data = pd.DataFrame(raw_data[0])
 
-    #Change the nominal values of variety to numeric
+    # Change the nominal values of variety to numeric
     df_data['variety'] = pd.factorize(df_data['variety'])[0]
 
 
     # Create the model
-    model = Model(df_data, 0.8)
+    model = Model(df_data, 0.7)
 
     # Create training and test sets
     training_set, test_set = model.define_training_test()
 
     # Retrieve the hyperparameters grid from a csv file
-    hyperparameters = model.read_csv('perceptron-iris-df-grid/test.csv')
+    hyperparameters = model.read_csv('test.csv')
 
-    print(hyperparameters)
+    # print(hyperparameters)
 
     # Cross validate the model
-    model.cross_validate(training_set, 2, hyperparameters)
+    model.cross_validate(training_set, 3, hyperparameters)
 
 
 main_pipeline()
