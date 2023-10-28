@@ -1,6 +1,5 @@
 from sklearn import datasets
 from sklearn.neural_network import MLPClassifier
-from sklearn.metrics import mean_squared_error
 from scipy.io.arff import loadarff
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -30,22 +29,33 @@ class Model:
             set = self.dataset[mask]
             
             # Randomize each set
+            # Each set should only contain data from that specific class
             shuffled_set = set.sample(frac = 1).reset_index(drop=True)
 
-            # Set tresholds
-            BOTTOM = 0
-            TOP = math.floor(len(shuffled_set) * self.training_percentage)
-
-            # Retrieve data
-            training_part = shuffled_set.iloc[BOTTOM:TOP]
-            test_part = shuffled_set.iloc[TOP:len(shuffled_set)]
+            shuffled_set_class = str(list(shuffled_set[shuffled_set.columns[-1]].drop_duplicates())[0])
             
-            # Append data to its corresponding part
-            training_set = pd.concat([training_set, training_part])
-            test_set = pd.concat([test_set, test_part])
+            if shuffled_set_class == str(c):
+                # Set tresholds
+                BOTTOM = 0
+                TOP = math.floor(len(shuffled_set) * self.training_percentage)
 
+                print({'bottom': BOTTOM, 'top': TOP})
+
+                # Retrieve data
+                training_part = shuffled_set.iloc[BOTTOM:TOP]
+                test_part = shuffled_set.iloc[TOP:len(shuffled_set)]
+                
+                # Append data to its corresponding part
+                training_set = pd.concat([training_set, training_part])
+                test_set = pd.concat([test_set, test_part])
+
+            else:
+                raise 'Set does not contain only one class'
+
+        # Randomizing each set again
         training_set = training_set.sample(frac = 1)
         test_set = test_set.sample(frac = 1)
+        
 
         return training_set, test_set
 
@@ -66,13 +76,15 @@ class Model:
 
         # print({'topology': topology, 'momemtum': momemtum, 'learning rate': learning_rate, 'epoch': epoch})
 
-        clf = MLPClassifier(max_iter = epoch, 
-                            hidden_layer_sizes = topology,
-                            learning_rate_init = learning_rate, 
-                            activation="logistic",
-                            momentum = momemtum,
-                            solver='lbfgs',
-                            random_state=42)
+        clf = MLPClassifier(
+            max_iter = epoch, 
+            hidden_layer_sizes = topology,
+            learning_rate_init = learning_rate, 
+            activation = "logistic",
+            momentum = momemtum,
+            solver = 'lbfgs',
+            random_state = 42
+        )
 
         # Train the model
         x_train = training_set[train_attributes]
@@ -91,22 +103,23 @@ class Model:
 
     def cross_validate(self, training_set, k, hyperparameters):
         percentage = 1/k
+        fold_window = math.floor(len(training_set) * percentage)
 
         TOP = 0
         BOTTOM = 0
 
         for n in range(0, k):
-            window = math.floor(len(training_set) * percentage)
+            # Define each fold length and limits using a sliding window
+            TOP += fold_window
+            BOTTOM = TOP - fold_window
 
-            # Sliding window
-            TOP += window
-            BOTTOM = TOP - window
-
-            # Create test fold
+            # Create the test fold
             test_fold = training_set.iloc[BOTTOM:TOP]
+
+            # Define training fold as an empty dataframe
             training_fold = pd.DataFrame()
 
-            # Create training fold
+            # Assign empty training fold to the set complement
             if n != 0 and n < k:
                 training_fold_complement_0 = training_set.iloc[0:BOTTOM]
                 training_fold_complement_1 = training_set.iloc[TOP:len(training_set)]
@@ -116,12 +129,12 @@ class Model:
             elif n == k:
                 training_fold = training_set.iloc[0:BOTTOM]
 
-            print(f'--------------FOLD: {n}-----------------')
-            print('Training fold: ')
-            print(training_fold)
-            print('Testing fold: ')
-            print(test_fold)
-            print('-----------------------------------------')
+            # print(f'--------------FOLD: {n}-----------------')
+            # print('Training fold: ')
+            # print(training_fold)
+            # print('Testing fold: ')
+            # print(test_fold)
+            # print('-----------------------------------------')
 
             # For each experiment in the grid, retrieve the best model
             for exp in hyperparameters:
@@ -129,7 +142,7 @@ class Model:
                 n_epochs = exp[0]
 
                 for e in range(1, n_epochs+1):
-                    errors = self.train_cross_validation(training_fold, test_fold, exp, e)
+                    errors = self.train_model(training_fold, test_fold, exp, e)
 
                     train_errors.append(errors[0])
                     test_errors.append(errors[1])
@@ -137,14 +150,14 @@ class Model:
                 # print(len(train_errors))
                 # print(len(test_errors))
 
-                plt.plot(range(1, len(train_errors) + 1), train_errors, label='Train Error')
-                plt.plot(range(1, len(test_errors) + 1), test_errors, label='Test Error')
-                plt.xlabel('Número de Épocas')
-                plt.ylabel('Error')
-                plt.legend()
-                plt.show()
+                # plt.plot(range(1, len(train_errors) + 1), train_errors, label='Train Error')
+                # plt.plot(range(1, len(test_errors) + 1), test_errors, label='Test Error')
+                # plt.xlabel('Número de Épocas')
+                # plt.ylabel('Error')
+                # plt.legend()
+                # plt.show()
 
-    def read_csv(self, filename):
+    def read_csv_hyperparameters(self, filename):
         def list_to_int(x):
             if type(x) is list:
                 return [int(n) for n in x]
@@ -201,12 +214,12 @@ def main_pipeline():
     training_set, test_set = model.define_training_test()
 
     # Retrieve the hyperparameters grid from a csv file
-    hyperparameters = model.read_csv('test.csv')
+    hyperparameters = model.read_csv_hyperparameters('test.csv')
 
     # print(hyperparameters)
 
     # Cross validate the model
-    model.cross_validate(training_set, 3, hyperparameters)
+    # model.cross_validate(training_set, 3, hyperparameters)
 
 
 main_pipeline()
