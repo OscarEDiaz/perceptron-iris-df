@@ -173,13 +173,13 @@ class Model:
             
             minimal_fold_errors[number_experiment, n] = min_test_error
 
-            # plt.plot(range(1, len(train_errors) + 1), train_errors, label='Train Error')
-            # plt.plot(range(1, len(test_errors) + 1), test_errors, label='Test Error')
-            # plt.axvline(x=overfitting_epoch, color='red', linestyle='--', label='Overfitting epoch')
-            # plt.xlabel('Número de Épocas')
-            # plt.ylabel('Error')
-            # plt.legend()
-            # plt.show()
+            plt.plot(range(1, len(train_errors) + 1), train_errors, label='Train Error')
+            plt.plot(range(1, len(test_errors) + 1), test_errors, label='Test Error')
+            plt.axvline(x=overfitting_epoch, color='red', linestyle='--', label='Overfitting epoch')
+            plt.xlabel('Número de Épocas')
+            plt.ylabel('Error')
+            plt.legend()
+            plt.show()
 
     def cross_validate(self, training_set, k, hyperparameters):
         percentage = 1/k
@@ -288,7 +288,7 @@ def main_pipeline():
     
     print('[------------------------MODEL TRAINING------------------------]')
     model.experimental_training(hyperparameters, performance_w_p, training_set, test_set, minimal_fold_errors, 0)
-    model.calculate_mean_and_stdev(hyperparameters, minimal_fold_errors, 3)
+    model.calculate_mean_and_stdev(hyperparameters, minimal_fold_errors, 1)
     model.get_best_experiment(hyperparameters, minimal_fold_errors)
 
 main_pipeline()
