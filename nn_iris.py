@@ -107,6 +107,11 @@ class Model:
         TOP = 0
         BOTTOM = 0
 
+        print("CROOOOSS-//////")
+
+        #Creates a matrix to store the errors of each folds, the mean of these and the std dev
+        minimal_fold_errors = np.zeros((len(hyperparameters), k+2)) 
+
         for n in range(0, k):
             # Define each fold length and limits using a sliding window
             TOP += fold_window
@@ -117,7 +122,7 @@ class Model:
 
             # Define training fold as an empty dataframe
             training_fold = pd.DataFrame()
-
+           
             # Assign empty training fold to the set complement
             if n != 0 and n < k:
                 training_fold_complement_0 = training_set.iloc[0:BOTTOM]
@@ -136,13 +141,15 @@ class Model:
             # print('-----------------------------------------')
 
             # Define window performance percentage to determine how many epochs will be analyzed
-            performance_w_p = 0.05
+            performance_w_p = 0.1
 
             # Standard deviation treshold (x times the mean)
             std_dev_trsh = 1.5
+            number_experiment = -1
 
             # For each experiment in the grid, retrieve the best model
             for exp in hyperparameters:
+                number_experiment += 1
                 train_errors, test_errors = [], []
                 n_epochs = exp[0]
 
@@ -200,8 +207,11 @@ class Model:
                     if cont_no_progress > p_window:
                         break
 
+                
+                
+                minimal_fold_errors[number_experiment,n] = min_test_error
 
-                print('flag: ', flag)
+                print('MIBINAL ERROR : ', min_test_error)
                 print('overfitting epoch: ', overfitting_epoch)
 
                 plt.plot(range(1, len(train_errors) + 1), train_errors, label='Train Error')
@@ -211,6 +221,28 @@ class Model:
                 plt.ylabel('Error')
                 plt.legend()
                 plt.show()
+
+
+        
+
+        def calculate_mean_and_stdev():
+            for i, _ in enumerate (hyperparameters):
+                minimal_fold_errors[i, k] = np.mean(minimal_fold_errors[i, 0:k])
+                minimal_fold_errors[i, k+1] = np.std(minimal_fold_errors[i, 0:k])
+
+        calculate_mean_and_stdev()
+
+        print(minimal_fold_errors)
+
+        def get_best_experiment():
+            _, _, _, idx, _ = np.argmin(minimal_fold_errors, axis=0)
+            print("The best experiment was achieved with the following parameters:")
+            print("# Épocas,# Neuronas,Momemtum,Learning Rate")
+            print(hyperparameters[idx])
+            print("Mean accuracy & STD desviation")
+            print(minimal_fold_errors[idx, 3:5])
+        get_best_experiment()
+
 
     def read_csv_hyperparameters(self, filename):
         def list_to_int(x):
