@@ -39,8 +39,6 @@ class Model:
                 BOTTOM = 0
                 TOP = math.floor(len(shuffled_set) * self.training_percentage)
 
-                print({'bottom': BOTTOM, 'top': TOP})
-
                 # Retrieve data
                 training_part = shuffled_set.iloc[BOTTOM:TOP]
                 test_part = shuffled_set.iloc[TOP:len(shuffled_set)]
@@ -52,10 +50,9 @@ class Model:
             else:
                 raise 'Set does not contain only one class'
 
-        # Randomizing each set again
+        # Randomizing each set again to ensure that there is no bias
         training_set = training_set.sample(frac = 1)
         test_set = test_set.sample(frac = 1)
-        
 
         return training_set, test_set
 
@@ -74,7 +71,7 @@ class Model:
         momemtum      = hyperparameters[2]
         learning_rate = hyperparameters[3]
 
-        # print({'topology': topology, 'momemtum': momemtum, 'learning rate': learning_rate, 'epoch': epoch})
+        print({'topology': topology, 'momemtum': momemtum, 'learning rate': learning_rate, 'epoch': epoch})
 
         clf = MLPClassifier(
             max_iter = epoch, 
@@ -95,10 +92,12 @@ class Model:
 
         clf.fit(x_train, y_train)
 
-        accuracy_train = clf.score(x_train, y_train) 
-        accuracy_test = clf.score(x_test, y_test) 
+        convergence = not clf.n_iter_ == clf.max_iter
 
-        return [accuracy_train, accuracy_test]
+        accuracy_train = 1 - clf.score(x_train, y_train) 
+        accuracy_test = 1 - clf.score(x_test, y_test) 
+
+        return accuracy_train, accuracy_test, convergence
 
 
     def cross_validate(self, training_set, k, hyperparameters):
@@ -136,26 +135,93 @@ class Model:
             # print(test_fold)
             # print('-----------------------------------------')
 
+            # Define window performance percentage to determine how many epochs will be analyzed
+            performance_w_p = 0.05
+
+            # Standard deviation treshold (x times the mean)
+            std_dev_trsh = 1.5
+
             # For each experiment in the grid, retrieve the best model
             for exp in hyperparameters:
                 train_errors, test_errors = [], []
                 n_epochs = exp[0]
 
-                for e in range(1, n_epochs+1):
-                    errors = self.train_model(training_fold, test_fold, exp, e)
+                # Performance window length
+                p_window = int(math.floor(performance_w_p * n_epochs))
 
-                    train_errors.append(errors[0])
-                    test_errors.append(errors[1])
+                # Define training and test windows
+                tr_top, tr_bottom = 0, 0
+
+                tst_top, tst_bottom = 0, 0
+                overfitting_epoch = 0
+
+                flag = 0
+                enable = True
+
+                # Train the model with n epochs
+                for e in range(1, n_epochs+1):
+                    train_error, test_error, convergence = self.train_model(training_fold, test_fold, exp, e)
+
+                    train_errors.append(train_error)
+                    test_errors.append(test_error)
+
+
+                    # Train erros and test erros have enough items to fill the window
+                    if len(train_errors) >= p_window and len(test_errors) >= p_window:
+                        tr_top = p_window
+                        tr_bottom = tr_top - p_window
+
+                        tst_top = p_window
+                        tst_bottom = tst_top - p_window
+
+                        print({'tr_top': tr_top, 'tr_bottom': tr_bottom, 'tst_top': tst_top, 'tst_bottom': tst_bottom})
+
+                        # Define the moving averages of both windows to visualize their trend
+                        train_window = pd.Series(train_errors[tr_bottom:tr_top])
+                        train_moving_avg = train_window.rolling(p_window).mean()
+
+                        test_window = pd.Series(test_errors[tst_bottom:tst_top])
+                        test_moving_avg = test_window.rolling(p_window).mean()
+
+                        # Determine if there's any improvement on both sets
+                        if convergence and enable:
+                            print('It converged')
+                            enable = False
+                            train_is_descending = train_moving_avg.iloc[-1] < train_moving_avg.iloc[0]
+                            test_is_ascending = test_moving_avg.iloc[-1] > test_moving_avg.iloc[0]
+
+                            # Calculate the standard deviation to see if there's an erratic behaviour or not
+                            train_std_dev = np.std(list(train_window))
+                            test_std_dev = np.std(list(test_window))
+
+                            tr_std_d_treshold = std_dev_trsh * np.mean(list(train_window))
+                            tst_std_d_treshold = std_dev_trsh * np.mean(list(test_window))
+
+                            # Define the conditions
+                            tr_is_erratic = train_std_dev > tr_std_d_treshold
+                            tst_is_erratic = test_std_dev > tst_std_d_treshold
+
+                            train_is_improving = train_is_descending and not tr_is_erratic
+                            test_is_improving = test_is_ascending and not tst_is_erratic
+
+                            if not train_is_improving or not test_is_improving:
+                                flag += 1
+                                overfitting_epoch = e
+                        else:
+                            print('Did not converged')
 
                 # print(len(train_errors))
                 # print(len(test_errors))
+                print('flag: ', flag)
+                print('overfitting epoch: ', overfitting_epoch)
 
-                # plt.plot(range(1, len(train_errors) + 1), train_errors, label='Train Error')
-                # plt.plot(range(1, len(test_errors) + 1), test_errors, label='Test Error')
-                # plt.xlabel('Número de Épocas')
-                # plt.ylabel('Error')
-                # plt.legend()
-                # plt.show()
+                plt.plot(range(1, len(train_errors) + 1), train_errors, label='Train Error')
+                plt.plot(range(1, len(test_errors) + 1), test_errors, label='Test Error')
+                plt.axvline(x=overfitting_epoch, color='red', linestyle='--', label='Overfitting epoch')
+                plt.xlabel('Número de Épocas')
+                plt.ylabel('Error')
+                plt.legend()
+                plt.show()
 
     def read_csv_hyperparameters(self, filename):
         def list_to_int(x):
@@ -219,7 +285,7 @@ def main_pipeline():
     # print(hyperparameters)
 
     # Cross validate the model
-    # model.cross_validate(training_set, 3, hyperparameters)
+    model.cross_validate(training_set, 3, hyperparameters)
 
 
 main_pipeline()
