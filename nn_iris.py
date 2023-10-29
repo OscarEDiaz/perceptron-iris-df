@@ -1,4 +1,3 @@
-from sklearn import datasets
 from sklearn.neural_network import MLPClassifier
 from scipy.io.arff import loadarff
 import matplotlib.pyplot as plt
@@ -6,6 +5,7 @@ import pandas as pd
 import numpy as np
 import math
 import csv
+import warnings
 
 class Model:
     def __init__(self, dataset, training_percentage):
@@ -71,7 +71,7 @@ class Model:
         momemtum      = hyperparameters[2]
         learning_rate = hyperparameters[3]
 
-        print({'topology': topology, 'momemtum': momemtum, 'learning rate': learning_rate, 'epoch': epoch})
+        # print({'topology': topology, 'momemtum': momemtum, 'learning rate': learning_rate, 'epoch': epoch})
 
         clf = MLPClassifier(
             max_iter = epoch, 
@@ -90,6 +90,8 @@ class Model:
         x_test = test_set[test_attributes]
         y_test = test_set[test_class_attribute]
 
+        warnings.filterwarnings("ignore")
+
         clf.fit(x_train, y_train)
 
         convergence = not clf.n_iter_ == clf.max_iter
@@ -100,6 +102,86 @@ class Model:
         return accuracy_train, accuracy_test, convergence
 
 
+    def calculate_mean_and_stdev(self, hyperparameters, minimal_fold_errors, k):
+        for i, _ in enumerate (hyperparameters):
+            minimal_fold_errors[i, -2:-1] = np.mean(minimal_fold_errors[i, 0:k])
+            minimal_fold_errors[i, -1:] = np.std(minimal_fold_errors[i, 0:k])
+
+    def get_best_experiment(self, hyperparameters, minimal_fold_errors):
+        idx = np.argmin(minimal_fold_errors, axis=0)[-2]
+        print('[-------------------------------------------------------------------]')
+        print('test: ', np.argmin(minimal_fold_errors, axis=0))
+        print("The best experiment was achieved with the following hyperparameters:")
+        print("# Epochs # Neurons Momemtum LearningRate")
+        print(f'    {hyperparameters[idx]}')
+        print("Mean Accuracy & Standard Desviation")
+        print(f'    {minimal_fold_errors[idx, -2:]}')
+        print('[-------------------------------------------------------------------]')
+
+
+    def experimental_training(self, hyperparameters, performance_w_p, training_fold, test_fold, minimal_fold_errors, n):
+        number_experiment = -1
+
+        # For each experiment in the grid, retrieve the best model
+        for exp in hyperparameters:
+            number_experiment += 1
+            train_errors, test_errors = [], []
+            n_epochs = exp[0]
+
+            # Performance window length
+            p_window = int(math.floor(performance_w_p * n_epochs))
+
+            overfitting_epoch = 0
+
+            # Minimal error in the test set achieved
+            min_test_error = np.inf
+
+            #The last error where a significant improvment was seen
+            last_significant_error = np.inf
+
+
+            #Counter of the number of epochs without progress
+            cont_no_progress = 0
+
+            #The value of the minimal chande needed to consider a change as progress
+            min_progress_need = 0.01
+
+            # Train the model with n epochs
+            for e in range(1, n_epochs+1):
+                train_error, test_error, convergence = self.train_model(training_fold, test_fold, exp, e)
+
+                # Determine the epoch where the test error was minimum.
+                if test_error < min_test_error:
+                    min_test_error = test_error
+                    overfitting_epoch = e
+                    
+                train_errors.append(train_error)
+                test_errors.append(test_error)
+                
+                change = abs(last_significant_error-test_error)
+
+                # Verify for no progress during n epochs
+                if change < min_progress_need:
+                    cont_no_progress += 1
+                else:
+                    cont_no_progress = 0
+                    last_significant_error = test_error
+
+                # If there is no progress during p_window epochs, it get out of the loop
+                if cont_no_progress > p_window:
+                    break
+
+            
+            minimal_fold_errors[number_experiment, n] = min_test_error
+
+            # plt.plot(range(1, len(train_errors) + 1), train_errors, label='Train Error')
+            # plt.plot(range(1, len(test_errors) + 1), test_errors, label='Test Error')
+            # plt.axvline(x=overfitting_epoch, color='red', linestyle='--', label='Overfitting epoch')
+            # plt.xlabel('Número de Épocas')
+            # plt.ylabel('Error')
+            # plt.legend()
+            # plt.show()
+
     def cross_validate(self, training_set, k, hyperparameters):
         percentage = 1/k
         fold_window = math.floor(len(training_set) * percentage)
@@ -107,10 +189,11 @@ class Model:
         TOP = 0
         BOTTOM = 0
 
-        print("CROOOOSS-//////")
-
-        #Creates a matrix to store the errors of each folds, the mean of these and the std dev
-        minimal_fold_errors = np.zeros((len(hyperparameters), k+2)) 
+        # Creates a matrix to store the errors of each folds, the mean of these and the std dev
+        minimal_fold_errors = np.zeros((len(hyperparameters), k+2))
+        
+        # Define window performance percentage to determine how many epochs will be analyzed
+        performance_w_p = 0.1
 
         for n in range(0, k):
             # Define each fold length and limits using a sliding window
@@ -133,115 +216,10 @@ class Model:
             elif n == k:
                 training_fold = training_set.iloc[0:BOTTOM]
 
-            # print(f'--------------FOLD: {n}-----------------')
-            # print('Training fold: ')
-            # print(training_fold)
-            # print('Testing fold: ')
-            # print(test_fold)
-            # print('-----------------------------------------')
+            self.experimental_training(hyperparameters, performance_w_p, training_fold, test_fold, minimal_fold_errors, n)            
 
-            # Define window performance percentage to determine how many epochs will be analyzed
-            performance_w_p = 0.1
-
-            # Standard deviation treshold (x times the mean)
-            std_dev_trsh = 1.5
-            number_experiment = -1
-
-            # For each experiment in the grid, retrieve the best model
-            for exp in hyperparameters:
-                number_experiment += 1
-                train_errors, test_errors = [], []
-                n_epochs = exp[0]
-
-                # Performance window length
-                p_window = int(math.floor(performance_w_p * n_epochs))
-
-
-
-                overfitting_epoch = 0
-
-                flag = 0
-
-                # Minimal error in the test set achieved
-                min_test_error = np.inf
-
-                #The last error where a significant improvment was seen
-                last_significant_error = np.inf
-
-
-                #Counter of the number of epochs without progress
-                cont_no_progress = 0
-
-                #The value of the minimal chande needed to consider a change as progress
-                min_progress_need = 0.01
-
-
-                # Train the model with n epochs
-                for e in range(1, n_epochs+1):
-                    train_error, test_error, convergence = self.train_model(training_fold, test_fold, exp, e)
-
-                    #Determine the epoch where the test error was minimum.
-                    if test_error < min_test_error:
-                        min_test_error = test_error
-                        overfitting_epoch = e
-                        
-                    train_errors.append(train_error)
-                    test_errors.append(test_error)
-
-
-                    
-                    print("change bweteen the las significant error and the actual error:")
-                    change = abs(last_significant_error-test_error)
-                    print(change)
-
-                    #Verify for no progress during n epochs
-                    if change < min_progress_need:
-                        no_progress = True
-                        cont_no_progress += 1
-                    else:
-                        no_progress = False
-                        cont_no_progress = 0
-                        last_significant_error = test_error
-
-                    #If there is no progress during p_window epochs, it get out of the loop
-                    if cont_no_progress > p_window:
-                        break
-
-                
-                
-                minimal_fold_errors[number_experiment,n] = min_test_error
-
-                print('MIBINAL ERROR : ', min_test_error)
-                print('overfitting epoch: ', overfitting_epoch)
-
-                plt.plot(range(1, len(train_errors) + 1), train_errors, label='Train Error')
-                plt.plot(range(1, len(test_errors) + 1), test_errors, label='Test Error')
-                plt.axvline(x=overfitting_epoch, color='red', linestyle='--', label='Overfitting epoch')
-                plt.xlabel('Número de Épocas')
-                plt.ylabel('Error')
-                plt.legend()
-                plt.show()
-
-
-        
-
-        def calculate_mean_and_stdev():
-            for i, _ in enumerate (hyperparameters):
-                minimal_fold_errors[i, k] = np.mean(minimal_fold_errors[i, 0:k])
-                minimal_fold_errors[i, k+1] = np.std(minimal_fold_errors[i, 0:k])
-
-        calculate_mean_and_stdev()
-
-        print(minimal_fold_errors)
-
-        def get_best_experiment():
-            _, _, _, idx, _ = np.argmin(minimal_fold_errors, axis=0)
-            print("The best experiment was achieved with the following parameters:")
-            print("# Épocas,# Neuronas,Momemtum,Learning Rate")
-            print(hyperparameters[idx])
-            print("Mean accuracy & STD desviation")
-            print(minimal_fold_errors[idx, 3:5])
-        get_best_experiment()
+        self.calculate_mean_and_stdev(hyperparameters, minimal_fold_errors, k)
+        self.get_best_experiment(hyperparameters, minimal_fold_errors)
 
 
     def read_csv_hyperparameters(self, filename):
@@ -293,7 +271,6 @@ def main_pipeline():
     # Change the nominal values of variety to numeric
     df_data['variety'] = pd.factorize(df_data['variety'])[0]
 
-
     # Create the model
     model = Model(df_data, 0.7)
 
@@ -301,12 +278,18 @@ def main_pipeline():
     training_set, test_set = model.define_training_test()
 
     # Retrieve the hyperparameters grid from a csv file
-    hyperparameters = model.read_csv_hyperparameters('perceptron-iris-df-grid/test.csv')
+    hyperparameters = model.read_csv_hyperparameters('test.csv')
 
-    # print(hyperparameters)
+    performance_w_p = 0.1
+    minimal_fold_errors = np.zeros((len(hyperparameters), 3))
 
     # Cross validate the model
+    print('[-------------------------CROSS VALIDATION-------------------------]')
     model.cross_validate(training_set, 3, hyperparameters)
-
+    
+    print('[------------------------MODEL TRAINING------------------------]')
+    model.experimental_training(hyperparameters, performance_w_p, training_set, test_set, minimal_fold_errors, 0)
+    model.calculate_mean_and_stdev(hyperparameters, minimal_fold_errors, 3)
+    model.get_best_experiment(hyperparameters, minimal_fold_errors)
 
 main_pipeline()
