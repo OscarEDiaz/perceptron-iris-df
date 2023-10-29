@@ -149,69 +149,58 @@ class Model:
                 # Performance window length
                 p_window = int(math.floor(performance_w_p * n_epochs))
 
-                # Define training and test windows
-                tr_top, tr_bottom = 0, 0
 
-                tst_top, tst_bottom = 0, 0
+
                 overfitting_epoch = 0
 
                 flag = 0
-                enable = True
+
+                # Minimal error in the test set achieved
+                min_test_error = np.inf
+
+                #The last error where a significant improvment was seen
+                last_significant_error = np.inf
+
+
+                #Counter of the number of epochs without progress
+                cont_no_progress = 0
+
+                #The value of the minimal chande needed to consider a change as progress
+                min_progress_need = 0.01
+
 
                 # Train the model with n epochs
                 for e in range(1, n_epochs+1):
                     train_error, test_error, convergence = self.train_model(training_fold, test_fold, exp, e)
 
+                    #Determine the epoch where the test error was minimum.
+                    if test_error < min_test_error:
+                        min_test_error = test_error
+                        overfitting_epoch = e
+                        
                     train_errors.append(train_error)
                     test_errors.append(test_error)
 
 
-                    # Train erros and test erros have enough items to fill the window
-                    if len(train_errors) >= p_window and len(test_errors) >= p_window:
-                        tr_top = p_window
-                        tr_bottom = tr_top - p_window
+                    
+                    print("change bweteen the las significant error and the actual error:")
+                    change = abs(last_significant_error-test_error)
+                    print(change)
 
-                        tst_top = p_window
-                        tst_bottom = tst_top - p_window
+                    #Verify for no progress during n epochs
+                    if change < min_progress_need:
+                        no_progress = True
+                        cont_no_progress += 1
+                    else:
+                        no_progress = False
+                        cont_no_progress = 0
+                        last_significant_error = test_error
 
-                        print({'tr_top': tr_top, 'tr_bottom': tr_bottom, 'tst_top': tst_top, 'tst_bottom': tst_bottom})
+                    #If there is no progress during p_window epochs, it get out of the loop
+                    if cont_no_progress > p_window:
+                        break
 
-                        # Define the moving averages of both windows to visualize their trend
-                        train_window = pd.Series(train_errors[tr_bottom:tr_top])
-                        train_moving_avg = train_window.rolling(p_window).mean()
 
-                        test_window = pd.Series(test_errors[tst_bottom:tst_top])
-                        test_moving_avg = test_window.rolling(p_window).mean()
-
-                        # Determine if there's any improvement on both sets
-                        if convergence and enable:
-                            print('It converged')
-                            enable = False
-                            train_is_descending = train_moving_avg.iloc[-1] < train_moving_avg.iloc[0]
-                            test_is_ascending = test_moving_avg.iloc[-1] > test_moving_avg.iloc[0]
-
-                            # Calculate the standard deviation to see if there's an erratic behaviour or not
-                            train_std_dev = np.std(list(train_window))
-                            test_std_dev = np.std(list(test_window))
-
-                            tr_std_d_treshold = std_dev_trsh * np.mean(list(train_window))
-                            tst_std_d_treshold = std_dev_trsh * np.mean(list(test_window))
-
-                            # Define the conditions
-                            tr_is_erratic = train_std_dev > tr_std_d_treshold
-                            tst_is_erratic = test_std_dev > tst_std_d_treshold
-
-                            train_is_improving = train_is_descending and not tr_is_erratic
-                            test_is_improving = test_is_ascending and not tst_is_erratic
-
-                            if not train_is_improving or not test_is_improving:
-                                flag += 1
-                                overfitting_epoch = e
-                        else:
-                            print('Did not converged')
-
-                # print(len(train_errors))
-                # print(len(test_errors))
                 print('flag: ', flag)
                 print('overfitting epoch: ', overfitting_epoch)
 
@@ -280,7 +269,7 @@ def main_pipeline():
     training_set, test_set = model.define_training_test()
 
     # Retrieve the hyperparameters grid from a csv file
-    hyperparameters = model.read_csv_hyperparameters('test.csv')
+    hyperparameters = model.read_csv_hyperparameters('perceptron-iris-df-grid/test.csv')
 
     # print(hyperparameters)
 
