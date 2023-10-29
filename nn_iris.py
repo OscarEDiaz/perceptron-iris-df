@@ -110,7 +110,6 @@ class Model:
     def get_best_experiment(self, hyperparameters, minimal_fold_errors):
         idx = np.argmin(minimal_fold_errors, axis=0)[-2]
         print('[-------------------------------------------------------------------]')
-        print('test: ', np.argmin(minimal_fold_errors, axis=0))
         print("The best experiment was achieved with the following hyperparameters:")
         print("# Epochs # Neurons Momemtum LearningRate")
         print(f'    {hyperparameters[idx]}')
